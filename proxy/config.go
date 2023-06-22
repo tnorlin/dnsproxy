@@ -6,7 +6,6 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/AdguardTeam/dnsproxy/upstream"
 	"github.com/AdguardTeam/golibs/errors"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/ameshkov/dnscrypt/v2"
@@ -86,7 +85,7 @@ type Config struct {
 
 	// Fallbacks is a list of fallback resolvers.  Those will be used if the
 	// general set fails responding.
-	Fallbacks []upstream.Upstream
+	Fallbacks *UpstreamConfig
 
 	// UpstreamMode determines the logic through which upstreams will be used.
 	UpstreamMode UpstreamModeType
@@ -177,25 +176,16 @@ type Config struct {
 
 // validateConfig verifies that the supplied configuration is valid and returns an error if it's not
 func (p *Proxy) validateConfig() error {
-	if p.started {
-		return errors.Error("server has been already started")
-	}
-
 	err := p.validateListenAddrs()
 	if err != nil {
+		// Don't wrap the error since it's informative enough as is.
 		return err
 	}
 
-	if p.UpstreamConfig == nil {
-		return errors.Error("no default upstreams specified")
-	}
-
-	if len(p.UpstreamConfig.Upstreams) == 0 {
-		if len(p.UpstreamConfig.DomainReservedUpstreams) == 0 {
-			return errors.Error("no upstreams specified")
-		}
-
-		return errors.Error("no default upstreams specified")
+	err = p.validateUpstreams()
+	if err != nil {
+		// Don't wrap the error since it's informative enough as is.
+		return err
 	}
 
 	if p.CacheMinTTL > 0 || p.CacheMaxTTL > 0 {
@@ -212,6 +202,22 @@ func (p *Proxy) validateConfig() error {
 
 	if len(p.BogusNXDomain) > 0 {
 		log.Info("%d bogus-nxdomain IP specified", len(p.BogusNXDomain))
+	}
+
+	return nil
+}
+
+func (p *Proxy) validateUpstreams() (err error) {
+	if p.UpstreamConfig == nil {
+		return errors.Error("no default upstreams specified")
+	}
+
+	if len(p.UpstreamConfig.Upstreams) == 0 {
+		if len(p.UpstreamConfig.DomainReservedUpstreams) == 0 {
+			return errors.Error("no upstreams specified")
+		}
+
+		return errors.Error("no default upstreams specified")
 	}
 
 	return nil

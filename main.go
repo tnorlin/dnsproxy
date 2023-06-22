@@ -380,26 +380,10 @@ func initUpstreams(config *proxy.Config, options *Options) {
 		log.Fatalf("error while parsing private rdns upstreams configuration: %s", err)
 	}
 
-	if options.Fallbacks != nil {
-		fallbacks := []upstream.Upstream{}
-		for i, f := range loadServersList(options.Fallbacks) {
-			// Use the same options for fallback servers as for
-			// upstream servers until it is possible to configure it
-			// separately.
-			//
-			// See https://github.com/AdguardTeam/dnsproxy/issues/161.
-			var fallback upstream.Upstream
-			fallback, err = upstream.AddressToUpstream(f, upsOpts)
-			if err != nil {
-				log.Fatalf("cannot parse the fallback %s (%s): %s", f, options.BootstrapDNS, err)
-			}
-
-			log.Printf("fallback at index %d is %s", i, fallback.Address())
-
-			fallbacks = append(fallbacks, fallback)
-		}
-
-		config.Fallbacks = fallbacks
+	fallbacks := loadServersList(options.Fallbacks)
+	config.Fallbacks, err = proxy.ParseUpstreamsConfig(fallbacks, upsOpts)
+	if err != nil {
+		log.Fatalf("error while parsing fallback upstreams configuration: %s", err)
 	}
 
 	if options.AllServers {

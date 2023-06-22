@@ -232,6 +232,10 @@ func (p *Proxy) Start() (err error) {
 	p.Lock()
 	defer p.Unlock()
 
+	if p.started {
+		return errors.Error("server has been already started")
+	}
+
 	err = p.validateConfig()
 	if err != nil {
 		return err
@@ -272,6 +276,7 @@ func (p *Proxy) Stop() error {
 
 	p.Lock()
 	defer p.Unlock()
+
 	if !p.started {
 		log.Info("dnsproxy: dns proxy server is not started")
 
@@ -314,6 +319,10 @@ func (p *Proxy) Stop() error {
 
 	if p.UpstreamConfig != nil {
 		errs = closeAll(errs, p.UpstreamConfig)
+	}
+
+	if p.Fallbacks != nil {
+		errs = closeAll(errs, p.Fallbacks)
 	}
 
 	p.started = false
@@ -443,7 +452,7 @@ func (p *Proxy) needsLocalUpstream(req *dns.Msg) (ok bool) {
 
 // selectUpstreams returns the upstreams to use for the specified host.  It
 // firstly considers custom upstreams if those aren't empty and then the
-// configured ones.  It returns false, if no upstreams are available for current
+// configured ones.  It returns false, if no upstreams available for current
 // request.
 func (p *Proxy) selectUpstreams(d *DNSContext) (upstreams []upstream.Upstream, ok bool) {
 	host := d.Req.Question[0].Name
@@ -464,10 +473,9 @@ func (p *Proxy) selectUpstreams(d *DNSContext) (upstreams []upstream.Upstream, o
 
 	if d.CustomUpstreamConfig != nil {
 		upstreams = d.CustomUpstreamConfig.getUpstreamsForDomain(host)
-	}
-
-	if upstreams != nil {
-		return upstreams, true
+		if upstreams != nil {
+			return upstreams, true
+		}
 	}
 
 	return p.UpstreamConfig.getUpstreamsForDomain(host), true
@@ -500,7 +508,12 @@ func (p *Proxy) replyFromUpstream(d *DNSContext) (ok bool, err error) {
 	if err != nil && p.Fallbacks != nil {
 		log.Tracef("using the fallback upstream due to %s", err)
 
-		reply, u, err = upstream.ExchangeParallel(p.Fallbacks, req)
+		upstreams = p.Fallbacks.getUpstreamsForDomain(req.Question[0].Name)
+		if upstreams == nil {
+			return false, upstream.ErrNoUpstreams
+		}
+
+		reply, u, err = upstream.ExchangeParallel(upstreams, req)
 	}
 
 	if ok = reply != nil; ok {
