@@ -1,4 +1,4 @@
-//go:build unix
+//go:build darwin || freebsd || linux || openbsd || netbsd
 
 package netutil
 

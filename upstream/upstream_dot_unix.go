@@ -1,4 +1,4 @@
-//go:build darwin || freebsd || linux || openbsd || netbsd
+//go:build darwin || freebsd || linux || openbsd || netbsd || solaris
 
 package upstream
 
